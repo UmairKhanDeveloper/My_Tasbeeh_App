@@ -37,7 +37,7 @@ private data class BottomItem(val screen: screens, val label: String)
 
 
 private val bottomItems = listOf(
-    BottomItem(screens.Tasbeeh, "Home"),
+    BottomItem(screens.Tasbeeh, "Tasbeeh"),
     BottomItem(screens.Azkar, "Azkaar"),
     BottomItem(screens.Stats, "Stats"),
     BottomItem(screens.Setting, "Settings")
@@ -50,8 +50,8 @@ fun AppBottomBar(navController: NavController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    Column(modifier = Modifier.background(AppColors.Surface)) {
-        HorizontalDivider(color = AppColors.Border)
+    Column(modifier = Modifier.background(AppColors.surface())) {
+        HorizontalDivider(color = AppColors.border())
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
@@ -107,7 +107,7 @@ private fun BottomBarItem(
                 .width(60.dp)
                 .height(32.dp)
                 .clip(RoundedCornerShape(50))
-                .background(if (selected) AppColors.Primary else Color.Transparent),
+                .background(if (selected) AppColors.primary() else Color.Transparent),
             contentAlignment = Alignment.Center
         ) {
             item.screen.icon?.let { icon ->
@@ -115,7 +115,7 @@ private fun BottomBarItem(
                     painter = painterResource(icon),
                     contentDescription = item.label,
                     modifier = Modifier.size(22.dp),
-                    tint = if (selected) AppColors.OnPrimary else AppColors.TextMuted
+                    tint = if (selected) AppColors.onPrimary() else AppColors.textMuted()
                 )
             }
         }
@@ -125,7 +125,7 @@ private fun BottomBarItem(
             fontFamily = ManropeFamily,
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) AppColors.TextPrimary else AppColors.TextMuted
+            color = if (selected) AppColors.textPrimary() else AppColors.textMuted()
         )
     }
 }

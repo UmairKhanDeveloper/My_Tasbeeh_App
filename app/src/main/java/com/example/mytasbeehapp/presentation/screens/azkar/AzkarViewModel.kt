@@ -4,9 +4,9 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.mytasbeehapp.presentation.base.BaseViewModel
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.DayRecord
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.TasbeehStorage
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.localEpochDay
+import com.example.mytasbeehapp.domain.model.DayRecord
+import com.example.mytasbeehapp.data.storage.TasbeehStorage
+import com.example.mytasbeehapp.domain.model.localEpochDay
 
 class AzkarViewModel(
     private val storage: TasbeehStorage,

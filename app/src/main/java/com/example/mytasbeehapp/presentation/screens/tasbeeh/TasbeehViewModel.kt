@@ -1,15 +1,32 @@
 package com.example.mytasbeehapp.presentation.screens.tasbeeh
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.mytasbeehapp.data.repository.TasbeehRepository
+import com.example.mytasbeehapp.data.storage.syncedTo
+import com.example.mytasbeehapp.domain.model.DEFAULT_LIMIT
+import com.example.mytasbeehapp.domain.model.Limit
+import com.example.mytasbeehapp.domain.model.Preset
+import com.example.mytasbeehapp.domain.model.localEpochDay
 import com.example.mytasbeehapp.presentation.base.BaseViewModel
 import com.example.mytasbeehapp.presentation.screens.azkar.Zikr
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class TasbeehViewModel(
-    private val storage: TasbeehStorage,
-    private val today: () -> Long = ::localEpochDay
-) : BaseViewModel<TasbeehState, TasbeehIntent, TasbeehEffect>(storage.load(today())) {
+@HiltViewModel
+class TasbeehViewModel @Inject constructor(
+    private val repository: TasbeehRepository
+) : BaseViewModel<TasbeehState, TasbeehIntent, TasbeehEffect>(repository.getTasbeehData()) {
+
+    init {
+        viewModelScope.launch {
+            repository.vibrationFlow.collect { enabled ->
+                if (currentState.hapticEnabled != enabled) {
+                    setState { copy(hapticEnabled = enabled) }
+                }
+            }
+        }
+    }
 
     override fun handleIntent(intent: TasbeehIntent) {
         syncDay()
@@ -17,20 +34,33 @@ class TasbeehViewModel(
             TasbeehIntent.Tap -> tap()
             TasbeehIntent.Undo -> undo()
             TasbeehIntent.Reset -> reset()
-            TasbeehIntent.ToggleHaptic -> setState { copy(hapticEnabled = !hapticEnabled) }
+            TasbeehIntent.ToggleHaptic -> toggleHaptic()
             TasbeehIntent.RefreshDay -> Unit
+            TasbeehIntent.Reload -> syncDayWithNewCycleData()
             is TasbeehIntent.SelectLimit -> selectLimit(intent.limit)
             is TasbeehIntent.CustomLimitChanged -> changeCustomLimit(intent.value)
             is TasbeehIntent.SelectPreset -> selectPreset(intent.preset)
             is TasbeehIntent.SelectZikr -> selectZikr(intent.zikr)
             is TasbeehIntent.SetDailyGoal -> setDailyGoal(intent.goal)
         }
-        storage.save(currentState)
+        repository.saveTasbeehData(currentState)
+    }
+
+    private fun toggleHaptic() {
+        val newHaptic = !currentState.hapticEnabled
+        repository.saveVibration(newHaptic)
+        setState { copy(hapticEnabled = newHaptic) }
     }
 
     private fun syncDay() {
-        val synced = currentState.syncedTo(today())
+        val synced = currentState.syncedTo(localEpochDay())
         if (synced != currentState) setState { synced }
+    }
+
+    private fun syncDayWithNewCycleData() {
+        val newData = repository.getTasbeehData()
+        val synced = newData.syncedTo(localEpochDay())
+        setState { synced }
     }
 
     private fun tap() {
@@ -45,9 +75,15 @@ class TasbeehViewModel(
         } else {
             setState { copy(count = newCount, dailyCount = dailyCount + 1) }
         }
-        emitHaptic(if (stepDone || goalHit) TasbeehEffect.Completed else TasbeehEffect.Tick)
 
-        // Snackbar vibration setting par depend nahi karta
+        if (repository.getClickSound()) {
+            sendEffect(TasbeehEffect.PlayClick)
+        }
+
+        if (repository.getVibration()) {
+            emitHaptic(if (stepDone || goalHit) TasbeehEffect.Completed else TasbeehEffect.Tick)
+        }
+
         if (goalHit) sendEffect(TasbeehEffect.GoalReached)
     }
 
@@ -77,7 +113,6 @@ class TasbeehViewModel(
         else copy(count = count - 1, dailyCount = (dailyCount - 1).coerceAtLeast(0))
     }
 
-    /** Current session restart hota hai; aaj ka daily progress barqarar rehta hai. */
     private fun reset() = setState {
         copy(count = 0, presetStep = 0, completedRounds = 0)
     }
@@ -106,7 +141,6 @@ class TasbeehViewModel(
     }
 
     private fun selectZikr(zikr: Zikr) {
-        // Wahi zikr dobara tap kiya to progress na khoyein
         if (currentState.zikr == zikr && currentState.preset == null) return
         setState {
             copy(
@@ -121,7 +155,6 @@ class TasbeehViewModel(
         }
     }
 
-    /** Stats screen se goal badla ho to Home screen ka state bhi usi value par le aata hai. */
     private fun setDailyGoal(goal: Int) {
         if (currentState.dailyGoal == goal) return
         setState { copy(dailyGoal = goal) }
@@ -130,10 +163,4 @@ class TasbeehViewModel(
     private fun emitHaptic(effect: TasbeehEffect) {
         if (currentState.hapticEnabled) sendEffect(effect)
     }
-}
-
-class TasbeehViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        TasbeehViewModel(TasbeehStorage(context)) as T
 }

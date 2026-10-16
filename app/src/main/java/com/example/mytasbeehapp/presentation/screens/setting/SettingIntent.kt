@@ -33,5 +33,9 @@ sealed interface SettingIntent {
     data object ResetConfirmed : SettingIntent
     data object DismissResetDialog : SettingIntent
 
+    data object ResetCycleClicked : SettingIntent
+    data object ResetCycleConfirmed : SettingIntent
+    data object DismissResetCycleDialog : SettingIntent
+
     data object ReplaySplashClicked : SettingIntent
 }

@@ -1,13 +1,32 @@
 package com.example.mytasbeehapp.presentation.screens.setting
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,7 +50,22 @@ import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.VolumeDown
 import androidx.compose.material.icons.outlined.VolumeUp
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDefaults
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +76,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -52,10 +87,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.mytasbeehapp.R
+import com.example.mytasbeehapp.util.ReminderScheduler
+import com.example.mytasbeehapp.util.SoundManager
+import com.example.mytasbeehapp.util.VibrationManager
+import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -64,19 +104,13 @@ import kotlin.math.sin
 
 private val Green = Color(0xFF0B6B4B)
 private val GreenDark = Color(0xFF0A5A40)
-private val ScreenBg = Color(0xFFECF1EC)
-private val IconBg = Color(0xFFE0EBE3)
-private val DividerColor = Color(0xFFE3E8E4)
-private val TitleColor = Color(0xFF14221B)
-private val SubtitleColor = Color(0xFF5E6B63)
 private val Gold = Color(0xFFE5B84B)
 private val DangerRed = Color(0xFFD64545)
-private val SwitchOffTrack = Color(0xFFD5DDD6)
 
 @Composable
 fun Setting(
     navController: NavController,
-    viewModel: SettingViewModel = viewModel()
+    viewModel: SettingViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -119,6 +153,31 @@ fun Setting(
 
                 SettingEffect.NavigateToLicenses -> { }
                 SettingEffect.NavigateToSplash -> { }
+                SettingEffect.PlayVibration -> VibrationManager.vibrate(context)
+                SettingEffect.PlayClickSound -> SoundManager.playClick(context)
+                is SettingEffect.ScheduleReminder -> {
+                    if (effect.enabled) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            if (ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                (context as? Activity)?.requestPermissions(
+                                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                    101
+                                )
+                            }
+                        }
+                        ReminderScheduler.schedule(context, effect.type, effect.time)
+                        val name = if (effect.type == ReminderType.Morning) "Morning" else "Evening"
+                        Toast.makeText(context, "$name azkaar reminder set for ${formatTime(effect.time)}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        ReminderScheduler.cancel(context, effect.type)
+                        val name = if (effect.type == ReminderType.Morning) "Morning" else "Evening"
+                        Toast.makeText(context, "$name azkaar reminder turned off", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         }
     }
@@ -137,7 +196,7 @@ fun SettingContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ScreenBg)
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
     ) {
         Row(
@@ -147,8 +206,8 @@ fun SettingContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Settings", fontSize = 26.sp, fontWeight = FontWeight.SemiBold, color = TitleColor)
-            Surface(shape = RoundedCornerShape(50), color = Color.White, shadowElevation = 1.dp) {
+            Text("Settings", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+            Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -158,8 +217,8 @@ fun SettingContent(
                     Text(
                         "${state.streakDays} days",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TitleColor
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 }
             }
@@ -172,213 +231,272 @@ fun SettingContent(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            AppInfoCard(version = state.versionName)
-
-            SectionTitle("Appearance")
-            SettingsCard {
-                SettingRow(
-                    icon = R.drawable.theme,
-                    title = "Theme",
-                    subtitle = state.theme.label,
-                    onClick = { onIntent(SettingIntent.ThemeClicked) },
-                    trailing = { Chevron() }
-                )
+            AnimatedSettingsItem(index = 0) {
+                AppInfoCard(version = state.versionName)
             }
 
-            SectionTitle("Counting")
-            SettingsCard {
-                SettingRow(
-                    icon = R.drawable.vibration,
-                    title = "Vibration",
-                    subtitle = "Feel every tap",
-                    trailing = {
-                        GreenSwitch(state.vibration) {
-                            onIntent(SettingIntent.VibrationChanged(it))
+            AnimatedSettingsItem(index = 1) {
+                SectionTitle("Appearance")
+                SettingsCard {
+                    SettingRow(
+                        icon = R.drawable.theme,
+                        title = "Theme",
+                        subtitle = state.theme.label,
+                        onClick = { onIntent(SettingIntent.ThemeClicked) },
+                        trailing = { Chevron() }
+                    )
+                }
+            }
+
+            AnimatedSettingsItem(index = 2) {
+                SectionTitle("Counting")
+                SettingsCard {
+                    SettingRow(
+                        icon = R.drawable.vibration,
+                        title = "Vibration",
+                        subtitle = "Feel every tap",
+                        trailing = {
+                            GreenSwitch(state.vibration) {
+                                onIntent(SettingIntent.VibrationChanged(it))
+                            }
                         }
-                    }
-                )
-                RowDivider()
-                SettingRow(
-                    icon = Icons.Outlined.VolumeUp,
-                    title = "Click sound",
-                    subtitle = "Soft tick on each count",
-                    trailing = {
-                        GreenSwitch(state.clickSound) {
-                            onIntent(SettingIntent.ClickSoundChanged(it))
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = Icons.Outlined.VolumeUp,
+                        title = "Click sound",
+                        subtitle = "Soft tick on each count",
+                        trailing = {
+                            GreenSwitch(state.clickSound) {
+                                onIntent(SettingIntent.ClickSoundChanged(it))
+                            }
                         }
-                    }
-                )
-                RowDivider()
-                SettingRow(
-                    icon = Icons.Outlined.PhoneAndroid,
-                    title = "Keep screen on",
-                    subtitle = "While you count",
-                    trailing = {
-                        GreenSwitch(state.keepScreenOn) {
-                            onIntent(SettingIntent.KeepScreenOnChanged(it))
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = Icons.Outlined.PhoneAndroid,
+                        title = "Keep screen on",
+                        subtitle = "While you count",
+                        trailing = {
+                            GreenSwitch(state.keepScreenOn) {
+                                onIntent(SettingIntent.KeepScreenOnChanged(it))
+                            }
                         }
-                    }
-                )
-                RowDivider()
-                SettingRow(
-                    icon = Icons.Outlined.VolumeDown,
-                    title = "Volume buttons",
-                    subtitle = "Count with the volume keys",
-                    trailing = {
-                        GreenSwitch(state.volumeButtons) {
-                            onIntent(SettingIntent.VolumeButtonsChanged(it))
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = Icons.Outlined.VolumeDown,
+                        title = "Volume buttons",
+                        subtitle = "Count with the volume keys",
+                        trailing = {
+                            GreenSwitch(state.volumeButtons) {
+                                onIntent(SettingIntent.VolumeButtonsChanged(it))
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
 
-            SectionTitle("Goals and reminders")
-            SettingsCard {
-                SettingRow(
-                    icon = R.drawable.daily_goal,
-                    title = "Daily goal",
-                    subtitle = "Counts per day",
-                    trailing = {
-                        GoalStepper(
-                            value = state.dailyGoal,
-                            onMinus = { onIntent(SettingIntent.DailyGoalDecrement) },
-                            onPlus = { onIntent(SettingIntent.DailyGoalIncrement) }
-                        )
-                    }
-                )
-                RowDivider()
-                ReminderRow(
-                    title = "Morning azkaar",
-                    time = state.morningTime,
-                    enabled = state.morningEnabled,
-                    onToggle = {
-                        onIntent(SettingIntent.ReminderToggled(ReminderType.Morning, it))
-                    },
-                    onTimeClick = {
-                        onIntent(SettingIntent.ReminderTimeClicked(ReminderType.Morning))
-                    },
-                    onIconClick = { reminderDialogFor = ReminderType.Morning }
-                )
-                RowDivider()
-                ReminderRow(
-                    title = "Evening azkaar",
-                    time = state.eveningTime,
-                    enabled = state.eveningEnabled,
-                    onToggle = {
-                        onIntent(SettingIntent.ReminderToggled(ReminderType.Evening, it))
-                    },
-                    onTimeClick = {
-                        onIntent(SettingIntent.ReminderTimeClicked(ReminderType.Evening))
-                    },
-                    onIconClick = { reminderDialogFor = ReminderType.Evening }
-                )
+            AnimatedSettingsItem(index = 3) {
+                SectionTitle("Goals and reminders")
+                SettingsCard {
+                    SettingRow(
+                        icon = R.drawable.daily_goal,
+                        title = "Daily goal",
+                        subtitle = "Counts per day",
+                        trailing = {
+                            GoalStepper(
+                                value = state.dailyGoal,
+                                onMinus = { onIntent(SettingIntent.DailyGoalDecrement) },
+                                onPlus = { onIntent(SettingIntent.DailyGoalIncrement) }
+                            )
+                        }
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = Icons.Outlined.Schedule,
+                        title = "7-day cycle",
+                        subtitle = "Day ${state.cycleDay} of 7",
+                        onClick = { onIntent(SettingIntent.ResetCycleClicked) },
+                        trailing = { Chevron() }
+                    )
+                    RowDivider()
+                    ReminderRow(
+                        title = "Morning azkaar",
+                        time = state.morningTime,
+                        enabled = state.morningEnabled,
+                        onToggle = {
+                            onIntent(SettingIntent.ReminderToggled(ReminderType.Morning, it))
+                        },
+                        onTimeClick = {
+                            onIntent(SettingIntent.ReminderTimeClicked(ReminderType.Morning))
+                        },
+                        onIconClick = { reminderDialogFor = ReminderType.Morning }
+                    )
+                    RowDivider()
+                    ReminderRow(
+                        title = "Evening azkaar",
+                        time = state.eveningTime,
+                        enabled = state.eveningEnabled,
+                        onToggle = {
+                            onIntent(SettingIntent.ReminderToggled(ReminderType.Evening, it))
+                        },
+                        onTimeClick = {
+                            onIntent(SettingIntent.ReminderTimeClicked(ReminderType.Evening))
+                        },
+                        onIconClick = { reminderDialogFor = ReminderType.Evening }
+                    )
+                }
             }
 
-            SectionTitle("Support")
-            SettingsCard {
-                SettingRow(
-                    icon = R.drawable.rate_app,
-                    title = "Rate this app",
-                    subtitle = "Tell others what you think",
-                    onClick = { onIntent(SettingIntent.RateAppClicked) },
-                    trailing = { Chevron() }
-                )
-                RowDivider()
-                SettingRow(
-                    icon = R.drawable.share_app,
-                    title = "Share app",
-                    subtitle = "Invite family and friends",
-                    onClick = { onIntent(SettingIntent.ShareAppClicked) },
-                    trailing = { Chevron() }
-                )
-                RowDivider()
-                SettingRow(
-                    icon = R.drawable.send_feedback,
-                    title = "Send feedback",
-                    subtitle = "Report a problem or suggest a feature",
-                    onClick = { onIntent(SettingIntent.SendFeedbackClicked) },
-                    trailing = { Chevron() }
-                )
+            AnimatedSettingsItem(index = 4) {
+                SectionTitle("Support")
+                SettingsCard {
+                    SettingRow(
+                        icon = R.drawable.rate_app,
+                        title = "Rate this app",
+                        subtitle = "Tell others what you think",
+                        onClick = { onIntent(SettingIntent.RateAppClicked) },
+                        trailing = { Chevron() }
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = R.drawable.share_app,
+                        title = "Share app",
+                        subtitle = "Invite family and friends",
+                        onClick = { onIntent(SettingIntent.ShareAppClicked) },
+                        trailing = { Chevron() }
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = R.drawable.send_feedback,
+                        title = "Send feedback",
+                        subtitle = "Report a problem or suggest a feature",
+                        onClick = { onIntent(SettingIntent.SendFeedbackClicked) },
+                        trailing = { Chevron() }
+                    )
+                }
             }
 
-            SectionTitle("Privacy and legal")
-            SettingsCard {
-                SettingRow(
-                    icon = R.drawable.privacy_policy,
-                    title = "Privacy policy",
-                    onClick = { onIntent(SettingIntent.PrivacyPolicyClicked) },
-                    trailing = { Chevron() }
-                )
-                RowDivider()
-                SettingRow(
-                    icon = R.drawable.terms_of_use,
-                    title = "Terms of use",
-                    onClick = { onIntent(SettingIntent.TermsClicked) },
-                    trailing = { Chevron() }
-                )
-                RowDivider()
-                SettingRow(
-                    icon = R.drawable.about_info,
-                    title = "Open-source licenses",
-                    onClick = { onIntent(SettingIntent.LicensesClicked) },
-                    trailing = { Chevron() }
-                )
+            AnimatedSettingsItem(index = 5) {
+                SectionTitle("Privacy and legal")
+                SettingsCard {
+                    SettingRow(
+                        icon = R.drawable.privacy_policy,
+                        title = "Privacy policy",
+                        onClick = { onIntent(SettingIntent.PrivacyPolicyClicked) },
+                        trailing = { Chevron() }
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = R.drawable.terms_of_use,
+                        title = "Terms of use",
+                        onClick = { onIntent(SettingIntent.TermsClicked) },
+                        trailing = { Chevron() }
+                    )
+                    RowDivider()
+                    SettingRow(
+                        icon = R.drawable.about_info,
+                        title = "Open-source licenses",
+                        onClick = { onIntent(SettingIntent.LicensesClicked) },
+                        trailing = { Chevron() }
+                    )
+                }
             }
 
-            SectionTitle("Data")
-            SettingsCard {
-                SettingRow(
-                    icon = R.drawable.reset_data_red,
-                    title = "Reset all data",
-                    subtitle = "Deletes counts, history and custom zikr",
-                    iconTint = DangerRed,
-                    onClick = { onIntent(SettingIntent.ResetClicked) },
-                    trailing = { Chevron() }
-                )
+            AnimatedSettingsItem(index = 6) {
+                SectionTitle("Data")
+                SettingsCard {
+                    SettingRow(
+                        icon = R.drawable.reset_data_red,
+                        title = "Reset all data",
+                        subtitle = "Deletes counts, history and custom zikr",
+                        iconTint = Color(0xFFD64545),
+                        onClick = { onIntent(SettingIntent.ResetClicked) },
+                        trailing = { Chevron() }
+                    )
+                }
             }
 
-            SectionTitle("About")
-            SettingsCard {
-                SettingRow(
-                    icon = R.drawable.about_info,
-                    title = "Version",
-                    subtitle = "${state.versionName} (build ${state.buildNumber})"
-                )
+            AnimatedSettingsItem(index = 7) {
+                SectionTitle("About")
+                SettingsCard {
+                    SettingRow(
+                        icon = R.drawable.about_info,
+                        title = "Version",
+                        subtitle = "${state.versionName} (build ${state.buildNumber})"
+                    )
+                }
             }
 
-            Text(
-                "Made for your daily dhikr",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                textAlign = TextAlign.Center,
-                fontSize = 13.sp,
-                color = SubtitleColor
-            )
-            Spacer(Modifier.height(8.dp))
+            AnimatedSettingsItem(index = 8) {
+                Text(
+                    "Made for your daily dhikr",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    textAlign = TextAlign.Center,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
 
     if (state.showThemeDialog) {
-        ThemeDialog(
-            current = state.theme,
-            onDismiss = { onIntent(SettingIntent.DismissThemeDialog) },
-            onSelect = { onIntent(SettingIntent.ThemeSelected(it)) }
-        )
+        AnimatedVisibility(
+            visible = state.showThemeDialog,
+            enter = scaleIn(tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
+            exit = scaleOut(tween(200, easing = FastOutSlowInEasing)) + fadeOut(tween(200))
+        ) {
+            ThemeDialog(
+                current = state.theme,
+                onDismiss = { onIntent(SettingIntent.DismissThemeDialog) },
+                onSelect = { onIntent(SettingIntent.ThemeSelected(it)) }
+            )
+        }
     }
 
     if (state.showResetDialog) {
-        ActionConfirmDialog(
-            icon = Icons.Outlined.DeleteForever,
-            iconTint = DangerRed,
-            iconBackground = DangerRed.copy(alpha = 0.1f),
-            title = "Reset all data?",
-            message = "This will permanently delete all your counts, streaks and custom zikr. This action cannot be undone.",
-            confirmText = "Reset",
-            confirmColor = DangerRed,
-            onConfirm = { onIntent(SettingIntent.ResetConfirmed) },
-            onDismiss = { onIntent(SettingIntent.DismissResetDialog) }
-        )
+        AnimatedVisibility(
+            visible = state.showResetDialog,
+            enter = scaleIn(tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
+            exit = scaleOut(tween(200, easing = FastOutSlowInEasing)) + fadeOut(tween(200))
+        ) {
+            ActionConfirmDialog(
+                icon = Icons.Outlined.DeleteForever,
+                iconTint = DangerRed,
+                iconBackground = DangerRed.copy(alpha = 0.1f),
+                title = "Reset all data?",
+                message = "This will permanently delete all your counts, streaks and custom zikr. This action cannot be undone.",
+                confirmText = "Reset",
+                confirmColor = DangerRed,
+                onConfirm = { onIntent(SettingIntent.ResetConfirmed) },
+                onDismiss = { onIntent(SettingIntent.DismissResetDialog) }
+            )
+        }
+    }
+
+    if (state.showResetCycleDialog) {
+        AnimatedVisibility(
+            visible = state.showResetCycleDialog,
+            enter = scaleIn(tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
+            exit = scaleOut(tween(200, easing = FastOutSlowInEasing)) + fadeOut(tween(200))
+        ) {
+            ActionConfirmDialog(
+                icon = Icons.Outlined.Schedule,
+                iconTint = Green,
+                iconBackground = Green.copy(alpha = 0.1f),
+                title = "Reset 7-day cycle?",
+                message = "This will start a new 7-day cycle from today. Your counting progress will not be affected.",
+                confirmText = "Reset",
+                confirmColor = Green,
+                onConfirm = { onIntent(SettingIntent.ResetCycleConfirmed) },
+                onDismiss = { onIntent(SettingIntent.DismissResetCycleDialog) }
+            )
+        }
     }
 
     reminderDialogFor?.let { type ->
@@ -386,39 +504,81 @@ fun SettingContent(
         val label = if (isMorning) "morning" else "evening"
         val currentlyEnabled = if (isMorning) state.morningEnabled else state.eveningEnabled
         val time = if (isMorning) state.morningTime else state.eveningTime
+        val primaryColor = MaterialTheme.colorScheme.primary
 
-        ActionConfirmDialog(
-            icon = if (currentlyEnabled) Icons.Outlined.NotificationsOff else Icons.Outlined.NotificationsActive,
-            iconTint = Green,
-            iconBackground = Green.copy(alpha = 0.1f),
-            title = if (currentlyEnabled) "Turn off $label reminder?" else "Enable $label reminder?",
-            message = if (currentlyEnabled)
-                "You won't be reminded to recite your $label azkaar at ${formatTime(time)} anymore. You can turn it back on anytime."
-            else
-                "You'll get a daily notification at ${formatTime(time)} to recite your $label azkaar.",
-            confirmText = if (currentlyEnabled) "Turn off" else "Enable",
-            confirmColor = Green,
-            onConfirm = {
-                onIntent(SettingIntent.ReminderToggled(type, !currentlyEnabled))
-                reminderDialogFor = null
-            },
-            onDismiss = { reminderDialogFor = null }
-        )
+        AnimatedVisibility(
+            visible = reminderDialogFor != null,
+            enter = scaleIn(tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
+            exit = scaleOut(tween(200, easing = FastOutSlowInEasing)) + fadeOut(tween(200))
+        ) {
+            ActionConfirmDialog(
+                icon = if (currentlyEnabled) Icons.Outlined.NotificationsOff else Icons.Outlined.NotificationsActive,
+                iconTint = primaryColor,
+                iconBackground = primaryColor.copy(alpha = 0.1f),
+                title = if (currentlyEnabled) "Turn off $label reminder?" else "Enable $label reminder?",
+                message = if (currentlyEnabled)
+                    "You won't be reminded to recite your $label azkaar at ${formatTime(time)} anymore. You can turn it back on anytime."
+                else
+                    "You'll get a daily notification at ${formatTime(time)} to recite your $label azkaar.",
+                confirmText = if (currentlyEnabled) "Turn off" else "Enable",
+                confirmColor = primaryColor,
+                onConfirm = {
+                    onIntent(SettingIntent.ReminderToggled(type, !currentlyEnabled))
+                    reminderDialogFor = null
+                },
+                onDismiss = { reminderDialogFor = null }
+            )
+        }
     }
 
     state.timePickerFor?.let { type ->
         val initial = if (type == ReminderType.Morning) state.morningTime else state.eveningTime
-        ReminderTimePickerDialog(
-            initial = initial,
-            onDismiss = { onIntent(SettingIntent.DismissTimePicker) },
-            onConfirm = { onIntent(SettingIntent.ReminderTimeSelected(type, it)) }
+        AnimatedVisibility(
+            visible = state.timePickerFor != null,
+            enter = expandVertically(tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
+            exit = shrinkVertically(tween(200, easing = FastOutSlowInEasing)) + fadeOut(tween(200))
+        ) {
+            ReminderTimePickerDialog(
+                initial = initial,
+                onDismiss = { onIntent(SettingIntent.DismissTimePicker) },
+                onConfirm = { onIntent(SettingIntent.ReminderTimeSelected(type, it)) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnimatedSettingsItem(
+    index: Int,
+    content: @Composable () -> Unit
+) {
+    val visibleState = remember { MutableTransitionState(false) }
+    visibleState.targetState = true
+
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = slideInVertically(
+            initialOffsetY = { it / 3 },
+            animationSpec = tween(
+                durationMillis = 400,
+                delayMillis = index * 50,
+                easing = FastOutSlowInEasing
+            )
+        ) + fadeIn(
+            animationSpec = tween(
+                durationMillis = 400,
+                delayMillis = index * 50,
+                easing = FastOutSlowInEasing
+            )
         )
+    ) {
+        content()
     }
 }
 
 @Composable
 private fun AppInfoCard(version: String) {
-    Surface(shape = RoundedCornerShape(24.dp), color = Color.White, shadowElevation = 1.dp) {
+    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 1.dp) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -431,26 +591,32 @@ private fun AppInfoCard(version: String) {
                 Text(
                     "Noor Tasbeeh",
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TitleColor
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     "Version $version · Free, no account needed",
                     fontSize = 13.sp,
-                    color = SubtitleColor
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
             }
         }
     }
 }
 
+
 @Composable
 private fun AppLogo() {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val goldColor = Color(0xFFFFB300)
+    val centerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+
     Box(
         modifier = Modifier
             .size(64.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Brush.linearGradient(listOf(Green, GreenDark))),
+            .background(Brush.linearGradient(listOf(primaryColor, primaryColor.copy(alpha = 0.8f)))),
         contentAlignment = Alignment.Center
     ) {
         Canvas(Modifier.size(44.dp)) {
@@ -459,7 +625,7 @@ private fun AppLogo() {
             repeat(dots) { i ->
                 val angle = Math.toRadians(360.0 / dots * i - 90)
                 drawCircle(
-                    color = Gold,
+                    color = goldColor,
                     radius = 2.6.dp.toPx(),
                     center = Offset(
                         center.x + (radius * cos(angle)).toFloat(),
@@ -467,8 +633,8 @@ private fun AppLogo() {
                     )
                 )
             }
-            drawCircle(color = Color.White.copy(alpha = 0.9f), radius = 7.dp.toPx())
-            drawCircle(color = Gold, radius = 4.dp.toPx())
+            drawCircle(color = centerColor, radius = 7.dp.toPx())
+            drawCircle(color = goldColor, radius = 4.dp.toPx())
         }
     }
 }
@@ -479,8 +645,8 @@ private fun SectionTitle(text: String) {
         text,
         modifier = Modifier.padding(start = 6.dp, top = 10.dp, bottom = 2.dp),
         fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        color = Green
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary
     )
 }
 
@@ -489,7 +655,7 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 1.dp
     ) {
         Column(content = content)
@@ -501,7 +667,7 @@ private fun RowDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(start = 72.dp),
         thickness = 1.dp,
-        color = DividerColor
+        color = MaterialTheme.colorScheme.outlineVariant
     )
 }
 
@@ -511,7 +677,7 @@ private fun IconBadge(icon: Int, tint: Color = Green) {
         modifier = Modifier
             .size(40.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(IconBg),
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -529,7 +695,7 @@ private fun IconBadge(icon: ImageVector, tint: Color = Green) {
         modifier = Modifier
             .size(40.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(IconBg),
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -585,19 +751,42 @@ private fun SettingRowLayout(
     onClick: (() -> Unit)?,
     trailing: @Composable (() -> Unit)?
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.6f,
+            stiffness = 400f
+        ),
+        label = "settingRowScale"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    )
+                } else Modifier
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         badge()
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TitleColor)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
             if (subtitle != null) {
-                Text(subtitle, fontSize = 13.sp, color = SubtitleColor)
+                Text(subtitle, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             }
         }
         if (trailing != null) {
@@ -612,24 +801,37 @@ private fun Chevron() {
     Icon(
         painter = painterResource(id = R.drawable.chevron_right),
         contentDescription = null,
-        tint = SubtitleColor,
+        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         modifier = Modifier.size(22.dp)
     )
 }
 
 @Composable
 private fun GreenSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    val scale by animateFloatAsState(
+        targetValue = if (checked) 1.1f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.6f,
+            stiffness = 400f
+        ),
+        label = "switchScale"
+    )
+
     Switch(
         checked = checked,
         onCheckedChange = onChange,
         colors = SwitchDefaults.colors(
-            checkedThumbColor = Color.White,
-            checkedTrackColor = Green,
-            checkedBorderColor = Green,
-            uncheckedThumbColor = Color.White,
-            uncheckedTrackColor = SwitchOffTrack,
-            uncheckedBorderColor = SwitchOffTrack
-        )
+            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+            checkedTrackColor = MaterialTheme.colorScheme.primary,
+            checkedBorderColor = MaterialTheme.colorScheme.primary,
+            uncheckedThumbColor = MaterialTheme.colorScheme.onSurface,
+            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+            uncheckedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
     )
 }
 
@@ -643,7 +845,7 @@ private fun GoalStepper(value: Int, onMinus: () -> Unit, onPlus: () -> Unit) {
             textAlign = TextAlign.Center,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = TitleColor
+            color = MaterialTheme.colorScheme.onBackground
         )
         StepperButton(Icons.Outlined.Add, onPlus)
     }
@@ -651,15 +853,32 @@ private fun GoalStepper(value: Int, onMinus: () -> Unit, onPlus: () -> Unit) {
 
 @Composable
 private fun StepperButton(icon: ImageVector, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.9f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.6f,
+            stiffness = 400f
+        ),
+        label = "stepperButtonScale"
+    )
+
     Surface(
         onClick = onClick,
         shape = CircleShape,
-        color = Color.White,
-        border = BorderStroke(1.dp, DividerColor),
-        modifier = Modifier.size(34.dp)
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        interactionSource = interactionSource,
+        modifier = Modifier
+            .size(34.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = Green, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -682,24 +901,24 @@ private fun ReminderRow(
         ReminderIconBadge(enabled = enabled, onClick = onIconClick)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = TitleColor)
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.height(6.dp))
             Surface(
                 onClick = onTimeClick,
                 shape = RoundedCornerShape(10.dp),
-                color = IconBg,
-                border = BorderStroke(1.dp, DividerColor)
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Row(
                     Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(formatTime(time), fontSize = 14.sp, color = TitleColor)
+                    Text(formatTime(time), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
                     Spacer(Modifier.width(10.dp))
                     Icon(
                         imageVector = Icons.Outlined.Schedule,
                         contentDescription = null,
-                        tint = SubtitleColor.copy(alpha = 0.5f),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -715,14 +934,14 @@ private fun ReminderIconBadge(enabled: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .size(40.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(IconBg)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = if (enabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsNone,
             contentDescription = null,
-            tint = Green,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -734,13 +953,15 @@ private fun ThemeDialog(
     onDismiss: () -> Unit,
     onSelect: (AppTheme) -> Unit
 ) {
+    var selectedTheme by remember { mutableStateOf(current) }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 400.dp),
             shape = RoundedCornerShape(28.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.surface,
             shadowElevation = 8.dp
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
@@ -749,13 +970,13 @@ private fun ThemeDialog(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(Green.copy(alpha = 0.1f)),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Palette,
                             contentDescription = null,
-                            tint = Green,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -764,13 +985,14 @@ private fun ThemeDialog(
                         Text(
                             "Appearance",
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TitleColor
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
                             "Choose how Noor Tasbeeh looks",
                             fontSize = 13.sp,
-                            color = SubtitleColor
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -781,8 +1003,8 @@ private fun ThemeDialog(
                     AppTheme.entries.forEach { theme ->
                         ThemeOptionRow(
                             theme = theme,
-                            selected = theme == current,
-                            onClick = { onSelect(theme) }
+                            selected = theme == selectedTheme,
+                            onClick = { selectedTheme = theme }
                         )
                     }
                 }
@@ -793,8 +1015,11 @@ private fun ThemeDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Done", color = Green, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = {
+                        onSelect(selectedTheme)
+                        onDismiss()
+                    }) {
+                        Text("Done", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -809,11 +1034,11 @@ private fun ThemeOptionRow(
     onClick: () -> Unit
 ) {
     val borderColor by animateColorAsState(
-        targetValue = if (selected) Green else DividerColor,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
         label = "themeOptionBorder"
     )
     val backgroundColor by animateColorAsState(
-        targetValue = if (selected) Green.copy(alpha = 0.08f) else Color.White,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
         label = "themeOptionBackground"
     )
 
@@ -831,13 +1056,13 @@ private fun ThemeOptionRow(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(if (selected) Green else IconBg),
+                .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = themeIcon(theme),
                 contentDescription = null,
-                tint = if (selected) Color.White else SubtitleColor,
+                tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -845,8 +1070,8 @@ private fun ThemeOptionRow(
         Text(
             text = theme.label,
             fontSize = 15.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = TitleColor,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.weight(1f)
         )
         if (selected) {
@@ -854,13 +1079,13 @@ private fun ThemeOptionRow(
                 modifier = Modifier
                     .size(22.dp)
                     .clip(CircleShape)
-                    .background(Green),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Check,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(14.dp)
                 )
             }
@@ -894,7 +1119,7 @@ private fun ActionConfirmDialog(
                 .fillMaxWidth()
                 .widthIn(max = 400.dp),
             shape = RoundedCornerShape(28.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.surface,
             shadowElevation = 8.dp
         ) {
             Column(
@@ -921,8 +1146,8 @@ private fun ActionConfirmDialog(
                 Text(
                     text = title,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TitleColor,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center
                 )
 
@@ -931,7 +1156,8 @@ private fun ActionConfirmDialog(
                 Text(
                     text = message,
                     fontSize = 14.sp,
-                    color = SubtitleColor,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,
                     lineHeight = 20.sp
                 )
@@ -946,10 +1172,10 @@ private fun ActionConfirmDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, DividerColor),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TitleColor)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
                     ) {
-                        Text(dismissText, fontWeight = FontWeight.Medium)
+                        Text(dismissText, fontWeight = FontWeight.SemiBold)
                     }
                     Button(
                         onClick = onConfirm,
@@ -957,14 +1183,14 @@ private fun ActionConfirmDialog(
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = confirmColor,
-                            contentColor = Color.White
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         elevation = ButtonDefaults.buttonElevation(
                             defaultElevation = 0.dp,
                             pressedElevation = 0.dp
                         )
                     ) {
-                        Text(confirmText, fontWeight = FontWeight.SemiBold)
+                        Text(confirmText, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -994,11 +1220,11 @@ private fun ReminderTimePickerDialog(
             TimePicker(
                 state = pickerState,
                 colors = TimePickerDefaults.colors(
-                    selectorColor = Green,
-                    timeSelectorSelectedContainerColor = IconBg,
-                    timeSelectorSelectedContentColor = Green,
-                    periodSelectorSelectedContainerColor = IconBg,
-                    periodSelectorSelectedContentColor = Green
+                    selectorColor = MaterialTheme.colorScheme.primary,
+                    timeSelectorSelectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    timeSelectorSelectedContentColor = MaterialTheme.colorScheme.primary,
+                    periodSelectorSelectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    periodSelectorSelectedContentColor = MaterialTheme.colorScheme.primary
                 )
             )
         },
@@ -1008,11 +1234,11 @@ private fun ReminderTimePickerDialog(
                     onConfirm(LocalTime.of(pickerState.hour, pickerState.minute))
                 }
             }) {
-                Text("OK", color = Green)
+                Text("OK", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = Green) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
         }
     )
 }

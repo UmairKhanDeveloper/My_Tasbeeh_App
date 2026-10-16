@@ -14,7 +14,12 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -128,7 +133,7 @@ private fun AzkarContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppColors.Background),
+            .background(AppColors.background()),
         contentAlignment = Alignment.TopCenter
     ) {
         LazyColumn(
@@ -154,8 +159,7 @@ private fun AzkarContent(
 
             itemsIndexed(items = state.azkar, key = { _, item -> item.id }) { index, zikr ->
                 StaggeredEntrance(
-                    index = index + 1,
-                    modifier = Modifier.animateItem()
+                    index = index + 1
                 ) {
                     ZikrCard(
                         zikr = zikr,
@@ -165,12 +169,7 @@ private fun AzkarContent(
             }
 
             item(key = "add_form") {
-                StaggeredEntrance(
-                    index = state.azkar.size + 1,
-                    modifier = Modifier.animateItem()
-                ) {
-                    AddZikrCard(state = state, onIntent = onIntent)
-                }
+                AddZikrCard(state = state, onIntent = onIntent)
             }
         }
     }
@@ -190,14 +189,22 @@ private fun StaggeredEntrance(
     val visibleState = remember {
         MutableTransitionState(false).apply { targetState = true }
     }
-    val delay = index * 70
+    val delay = index * 60
 
     AnimatedVisibility(
         visibleState = visibleState,
         modifier = modifier,
-        enter = fadeIn(tween(450, delayMillis = delay, easing = FastOutSlowInEasing)) +
-                slideInVertically(tween(450, delayMillis = delay, easing = FastOutSlowInEasing)) { it / 5 } +
-                expandVertically(tween(300, delayMillis = delay))
+        enter = fadeIn(
+            animationSpec = tween(500, delayMillis = delay, easing = FastOutSlowInEasing)
+        ) + slideInVertically(
+            animationSpec = tween(500, delayMillis = delay, easing = FastOutSlowInEasing)
+        ) { it / 4 } + scaleIn(
+            animationSpec = spring(
+                dampingRatio = 0.8f,
+                stiffness = 300f
+            ),
+            initialScale = 0.92f
+        )
     ) {
         content()
     }
@@ -210,9 +217,9 @@ private fun AzkarHeader(streakDays: Int) {
     val flameTransition = rememberInfiniteTransition(label = "flame")
     val flameScale by flameTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.18f,
+        targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
+            animation = tween(800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "flameScale"
@@ -225,7 +232,7 @@ private fun AzkarHeader(streakDays: Int) {
     ) {
         Text(
             text = "Azkaar",
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 21.sp,
             fontWeight = FontWeight.Bold
         )
@@ -233,8 +240,8 @@ private fun AzkarHeader(streakDays: Int) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(AppColors.Surface)
-                .border(1.dp, AppColors.Border, RoundedCornerShape(50))
+                .background(AppColors.surface())
+                .border(1.dp, AppColors.border(), RoundedCornerShape(50))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -249,7 +256,7 @@ private fun AzkarHeader(streakDays: Int) {
             Spacer(modifier = Modifier.width(5.dp))
             Text(
                 text = if (streakDays == 1) "1 day" else "$streakDays days",
-                color = AppColors.TextPrimary,
+                color = AppColors.textPrimary(),
                 fontSize = 13.sp
             )
         }
@@ -264,12 +271,20 @@ private fun ZikrCard(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.97f else 1f,
+        targetValue = if (pressed) 0.96f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
+            dampingRatio = 0.65f,
+            stiffness = 450f
         ),
         label = "cardScale"
+    )
+    val elevation by animateFloatAsState(
+        targetValue = if (pressed) 4f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.6f,
+            stiffness = 300f
+        ),
+        label = "cardElevation"
     )
 
     Column(
@@ -280,13 +295,13 @@ private fun ZikrCard(
                 scaleY = scale
             }
             .shadow(
-                elevation = 1.dp,
+                elevation = elevation.dp,
                 shape = RoundedCornerShape(16.dp),
-                ambientColor = AppColors.Primary.copy(alpha = 0.06f),
-                spotColor = AppColors.Primary.copy(alpha = 0.06f)
+                ambientColor = AppColors.primary().copy(alpha = 0.08f),
+                spotColor = AppColors.primary().copy(alpha = 0.12f)
             )
             .clip(RoundedCornerShape(16.dp))
-            .background(AppColors.Surface)
+            .background(AppColors.surface())
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -301,7 +316,7 @@ private fun ZikrCard(
         ) {
             Text(
                 text = zikr.title,
-                color = AppColors.TextPrimary,
+                color = AppColors.textPrimary(),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
@@ -315,7 +330,7 @@ private fun ZikrCard(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = zikr.arabic,
-                color = AppColors.TextPrimary,
+                color = AppColors.textPrimary(),
                 fontSize = 34.sp,
                 lineHeight = 48.sp,
                 fontFamily = FontFamily.Serif,
@@ -329,7 +344,7 @@ private fun ZikrCard(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = zikr.meaning,
-                color = AppColors.TextMuted,
+                color = AppColors.textMuted(),
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
@@ -343,14 +358,14 @@ private fun CountPill(count: Int) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(AppColors.Surface)
-            .border(1.dp, AppColors.Border, RoundedCornerShape(50))
+            .background(AppColors.surface())
+            .border(1.dp, AppColors.border(), RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "$count times",
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 12.sp
         )
     }
@@ -361,65 +376,76 @@ private fun AddZikrCard(
     state: AzkarState,
     onIntent: (AzkarIntent) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 1.dp,
-                shape = RoundedCornerShape(16.dp),
-                ambientColor = AppColors.Primary.copy(alpha = 0.06f),
-                spotColor = AppColors.Primary.copy(alpha = 0.06f)
-            )
-            .clip(RoundedCornerShape(16.dp))
-            .background(AppColors.Surface)
-            .padding(14.dp)
+    val visibleState = remember { MutableTransitionState(false) }
+    visibleState.targetState = true
+
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = slideInVertically(
+            initialOffsetY = { it / 4 },
+            animationSpec = tween(400, easing = FastOutSlowInEasing)
+        ) + fadeIn(tween(400, easing = FastOutSlowInEasing))
     ) {
-        Text(
-            text = "Add your own zikr",
-            color = AppColors.TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 1.dp,
+                    shape = RoundedCornerShape(16.dp),
+                    ambientColor = AppColors.primary().copy(alpha = 0.06f),
+                    spotColor = AppColors.primary().copy(alpha = 0.06f)
+                )
+                .clip(RoundedCornerShape(16.dp))
+                .background(AppColors.surface())
+                .padding(14.dp)
         ) {
-            ZikrField(
-                value = state.nameInput,
-                onValueChange = { onIntent(AzkarIntent.NameChanged(it)) },
-                placeholder = "Name, e.g. Ya Allah",
-                modifier = Modifier.weight(1f),
-                imeAction = ImeAction.Next
+            Text(
+                text = "Add your own zikr",
+                color = AppColors.textPrimary(),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ZikrField(
+                    value = state.nameInput,
+                    onValueChange = { onIntent(AzkarIntent.NameChanged(it)) },
+                    placeholder = "Name, e.g. Ya Allah",
+                    modifier = Modifier.weight(1f),
+                    imeAction = ImeAction.Next
+                )
+                ZikrField(
+                    value = state.countInput,
+                    onValueChange = { onIntent(AzkarIntent.CountChanged(it)) },
+                    placeholder = "33",
+                    modifier = Modifier.width(72.dp),
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             ZikrField(
-                value = state.countInput,
-                onValueChange = { onIntent(AzkarIntent.CountChanged(it)) },
-                placeholder = "33",
-                modifier = Modifier.width(72.dp),
-                keyboardType = KeyboardType.Number,
-                imeAction = ImeAction.Next
+                value = state.textInput,
+                onValueChange = { onIntent(AzkarIntent.TextChanged(it)) },
+                placeholder = "Zikr text (optional)",
+                modifier = Modifier.fillMaxWidth(),
+                imeAction = ImeAction.Done
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            AddButton(
+                enabled = state.canAdd,
+                onClick = { onIntent(AzkarIntent.AddZikr) }
             )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        ZikrField(
-            value = state.textInput,
-            onValueChange = { onIntent(AzkarIntent.TextChanged(it)) },
-            placeholder = "Zikr text (optional)",
-            modifier = Modifier.fillMaxWidth(),
-            imeAction = ImeAction.Done
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        AddButton(
-            enabled = state.canAdd,
-            onClick = { onIntent(AzkarIntent.AddZikr) }
-        )
     }
 }
 
@@ -435,14 +461,22 @@ private fun ZikrField(
     val shape = RoundedCornerShape(12.dp)
     var focused by remember { mutableStateOf(false) }
     val borderColor by animateColorAsState(
-        targetValue = if (focused) AppColors.Primary else AppColors.Border,
-        animationSpec = tween(220),
+        targetValue = if (focused) AppColors.primary() else AppColors.border(),
+        animationSpec = tween(200, easing = FastOutSlowInEasing),
         label = "fieldBorder"
     )
     val background by animateColorAsState(
-        targetValue = if (focused) AppColors.Surface else AppColors.FieldBackground,
-        animationSpec = tween(220),
+        targetValue = if (focused) AppColors.surface() else AppColors.fieldBackground(),
+        animationSpec = tween(200, easing = FastOutSlowInEasing),
         label = "fieldBackground"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (focused) 1.02f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.7f,
+            stiffness = 350f
+        ),
+        label = "fieldScale"
     )
 
     BasicTextField(
@@ -451,13 +485,17 @@ private fun ZikrField(
         singleLine = true,
         textStyle = TextStyle(
             fontFamily = ManropeFamily,
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 14.sp
         ),
-        cursorBrush = SolidColor(AppColors.Primary),
+        cursorBrush = SolidColor(AppColors.primary()),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
         modifier = modifier
             .height(44.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(shape)
             .background(background)
             .border(1.dp, borderColor, shape)
@@ -468,7 +506,7 @@ private fun ZikrField(
                 if (value.isEmpty()) {
                     Text(
                         text = placeholder,
-                        color = AppColors.TextMuted,
+                        color = AppColors.textMuted(),
                         fontSize = 14.sp
                     )
                 }
@@ -486,16 +524,16 @@ private fun AddButton(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) 0.94f else 1f,
+        targetValue = if (pressed && enabled) 0.95f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
+            dampingRatio = 0.6f,
+            stiffness = 400f
         ),
         label = "buttonScale"
     )
     val alpha by animateFloatAsState(
         targetValue = if (enabled) 1f else 0.5f,
-        animationSpec = tween(220),
+        animationSpec = tween(200),
         label = "buttonAlpha"
     )
 
@@ -507,7 +545,7 @@ private fun AddButton(
             }
             .alpha(alpha)
             .clip(RoundedCornerShape(50))
-            .background(AppColors.Primary)
+            .background(AppColors.primary())
             .clickable(
                 enabled = enabled,
                 interactionSource = interactionSource,
@@ -519,7 +557,7 @@ private fun AddButton(
     ) {
         Text(
             text = "Add zikr",
-            color = AppColors.OnPrimary,
+            color = AppColors.onPrimary(),
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold
         )

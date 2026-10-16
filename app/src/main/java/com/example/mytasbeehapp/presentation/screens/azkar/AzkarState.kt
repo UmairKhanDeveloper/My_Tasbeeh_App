@@ -12,10 +12,10 @@ data class AzkarState(
 }
 
 val defaultAzkar = listOf(
-    Zikr(1, "SubhanAllah", "سُبْحَانَ ٱللَّٰهِ", "Glory be to Allah", 33),
-    Zikr(2, "Alhamdulillah", "ٱلْحَمْدُ لِلَّٰهِ", "All praise is for Allah", 33),
-    Zikr(3, "Allahu Akbar", "ٱللَّٰهُ أَكْبَرُ", "Allah is the Greatest", 34),
-    Zikr(4, "Durood Sharif", "صَلَّى ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ", "Peace and blessings upon the Prophet", 100),
-    Zikr(5, "Istighfar", "أَسْتَغْفِرُ ٱللَّٰهَ", "I seek for[giveness from Allah", 100),
-    Zikr(6, "La ilaha illallah", "لَا إِلَٰهَ إِلَّا ٱللَّٰهُ", "There is no god but Allah", 100)
+    Zikr(1L, "SubhanAllah", "سُبْحَانَ ٱللَّٰهِ", "Glory be to Allah", 33),
+    Zikr(2L, "Alhamdulillah", "ٱلْحَمْدُ لِلَّٰهِ", "All praise is for Allah", 33),
+    Zikr(3L, "Allahu Akbar", "ٱللَّٰهُ أَكْبَرُ", "Allah is the Greatest", 34),
+    Zikr(4L, "Durood Sharif", "صَلَّى ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ", "Peace and blessings upon the Prophet", 100),
+    Zikr(5L, "Istighfar", "أَسْتَغْفِرُ ٱللَّٰهَ", "I seek for[giveness from Allah", 100),
+    Zikr(6L, "La ilaha illallah", "لَا إِلَٰهَ إِلَّا ٱللَّٰهُ", "There is no god but Allah", 100)
 )

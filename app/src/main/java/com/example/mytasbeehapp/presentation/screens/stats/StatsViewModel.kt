@@ -1,27 +1,27 @@
 package com.example.mytasbeehapp.presentation.screens.stats
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.mytasbeehapp.data.repository.TasbeehRepository
+import com.example.mytasbeehapp.domain.model.DayRecord
+import com.example.mytasbeehapp.domain.model.localEpochDay
+import com.example.mytasbeehapp.domain.model.epochDayToMillis
 import com.example.mytasbeehapp.presentation.base.BaseViewModel
 import com.example.mytasbeehapp.presentation.screens.tasbeeh.DailyGoalBus
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.DayRecord
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.TasbeehStorage
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.epochDayToMillis
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.localEpochDay
+import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
-class StatsViewModel(
-    private val storage: TasbeehStorage,
-    private val today: () -> Long = ::localEpochDay
-) : BaseViewModel<StatsState, StatsIntent, StatsEffect>(buildStatsState(storage, today())) {
+@HiltViewModel
+class StatsViewModel @Inject constructor(
+    private val repository: TasbeehRepository
+) : BaseViewModel<StatsState, StatsIntent, StatsEffect>(buildStatsState(repository, localEpochDay())) {
 
     override fun handleIntent(intent: StatsIntent) {
         when (intent) {
-            StatsIntent.Refresh -> setState { buildStatsState(storage, today()) }
+            StatsIntent.Refresh -> setState { buildStatsState(repository, localEpochDay()) }
             StatsIntent.IncreaseGoal -> changeGoal(GOAL_STEP)
             StatsIntent.DecreaseGoal -> changeGoal(-GOAL_STEP)
         }
@@ -32,10 +32,10 @@ class StatsViewModel(
         if (newGoal == currentState.dailyGoal) return
 
         // Ek hi storage Home screen bhi use karta hai, isliye goal dono jagah sync rehta hai.
-        storage.saveDailyGoal(newGoal)
+        repository.saveDailyGoal(newGoal)
         DailyGoalBus.update(newGoal)
 
-        setState { buildStatsState(storage, today()) }
+        setState { buildStatsState(repository, localEpochDay()) }
         sendEffect(StatsEffect.GoalChanged)
     }
 
@@ -46,16 +46,17 @@ class StatsViewModel(
     }
 }
 
-class StatsViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        StatsViewModel(TasbeehStorage(context)) as T
-}
-
 /** Home screen ki asli persisted history se Stats screen ki poori state banata hai. */
-private fun buildStatsState(storage: TasbeehStorage, todayDay: Long): StatsState {
-    val goal = storage.loadDailyGoal()
-    val historyByDay = storage.loadHistory().associateBy { it.epochDay }
+private fun buildStatsState(repository: TasbeehRepository, todayDay: Long): StatsState {
+    val goal = repository.getDailyGoal()
+    val tasbeehData = repository.getTasbeehData()
+    val historyByDay = repository.getHistory().associateBy { it.epochDay }.toMutableMap()
+
+    // Ensure today's count reflects the latest live dailyCount from repository/storage
+    val todayRecord = historyByDay[todayDay]
+    if (todayRecord == null || tasbeehData.dailyCount > todayRecord.count) {
+        historyByDay[todayDay] = DayRecord(todayDay, tasbeehData.dailyCount)
+    }
 
     val week = (6 downTo 0).map { offset ->
         val day = todayDay - offset
@@ -89,7 +90,9 @@ private fun currentStreak(
     if (goal <= 0) return 0
     var streak = 0
     var day = todayDay
-    while ((historyByDay[day]?.count ?: 0) >= goal) {
+    while (true) {
+        val count = historyByDay[day]?.count ?: 0
+        if (count < goal) break
         streak++
         day--
     }

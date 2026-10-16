@@ -1,5 +1,7 @@
 package com.example.mytasbeehapp.presentation.screens.tasbeeh
 
+import com.example.mytasbeehapp.domain.model.Limit
+import com.example.mytasbeehapp.domain.model.Preset
 import com.example.mytasbeehapp.presentation.screens.azkar.Zikr
 
 sealed interface TasbeehIntent {
@@ -8,6 +10,7 @@ sealed interface TasbeehIntent {
     data object Reset : TasbeehIntent
     data object ToggleHaptic : TasbeehIntent
     data object RefreshDay : TasbeehIntent
+    data object Reload : TasbeehIntent
 
     data class SelectLimit(val limit: Limit) : TasbeehIntent
     data class CustomLimitChanged(val value: String) : TasbeehIntent

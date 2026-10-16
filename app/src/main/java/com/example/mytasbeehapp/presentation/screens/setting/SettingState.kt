@@ -24,6 +24,8 @@ data class SettingState(
     val buildNumber: Int = 1,
     val showThemeDialog: Boolean = false,
     val showResetDialog: Boolean = false,
-    val timePickerFor: ReminderType? = null
+    val timePickerFor: ReminderType? = null,
+    val cycleDay: Int = 1,
+    val showResetCycleDialog: Boolean = false
 )
 

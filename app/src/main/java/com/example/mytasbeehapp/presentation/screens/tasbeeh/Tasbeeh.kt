@@ -95,30 +95,42 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.mytasbeehapp.R
+import com.example.mytasbeehapp.domain.model.DhikrInfo
+import com.example.mytasbeehapp.domain.model.Limit
+import com.example.mytasbeehapp.domain.model.Preset
+import com.example.mytasbeehapp.domain.model.Presets
 import com.example.mytasbeehapp.presentation.screens.azkar.ZikrSelectionBus
 import com.example.mytasbeehapp.presentation.screens.component.AppColors
 import com.example.mytasbeehapp.presentation.theme.ManropeFamily
+import com.example.mytasbeehapp.util.SoundManager
+import com.example.mytasbeehapp.util.VibrationManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun Tasbeeh(
     navController: NavController,
-    viewModel: TasbeehViewModel = viewModel(
-        factory = TasbeehViewModelFactory(LocalContext.current.applicationContext)
-    )
+    viewModel: TasbeehViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                TasbeehEffect.Tick -> haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                TasbeehEffect.Completed -> haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                TasbeehEffect.Tick -> {
+                    VibrationManager.vibrate(context, 35)
+                }
+                TasbeehEffect.Completed -> {
+                    VibrationManager.vibrate(context, 100)
+                }
+                TasbeehEffect.PlayClick -> {
+                    SoundManager.playClick(context)
+                }
                 TasbeehEffect.GoalReached -> scope.launch {
                     snackbarHostState.currentSnackbarData?.dismiss()
                     snackbarHostState.showSnackbar(
@@ -127,6 +139,12 @@ fun Tasbeeh(
                     )
                 }
             }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        VolumeKeyBus.events.collect {
+            viewModel.onIntent(TasbeehIntent.Tap)
         }
     }
 
@@ -149,9 +167,11 @@ fun Tasbeeh(
     }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            delay(30_000)
-            viewModel.onIntent(TasbeehIntent.RefreshDay)
+        CycleResetBus.reset.collect { shouldReload ->
+            if (shouldReload) {
+                viewModel.onIntent(TasbeehIntent.Reload)
+                CycleResetBus.consume()
+            }
         }
     }
 
@@ -188,13 +208,13 @@ private fun TasbeehContent(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppColors.Background)
+            .background(AppColors.background())
     ) {
-        val compact = maxWidth < 360.dp
-        val shortScreen = maxHeight < 640.dp
+        val compact = this.maxWidth < 360.dp
+        val shortScreen = this.maxHeight < 640.dp
         val horizontalPadding = when {
-            maxWidth < 360.dp -> 10.dp
-            maxWidth > 600.dp -> 20.dp
+            this.maxWidth < 360.dp -> 10.dp
+            this.maxWidth > 600.dp -> 20.dp
             else -> 14.dp
         }
         val titleSize = if (compact) 19.sp else 21.sp
@@ -272,7 +292,7 @@ private fun TasbeehContent(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    val available = minOf(maxWidth, maxHeight)
+                    val available = minOf(this.maxWidth, this.maxHeight)
                     val diameter = (available - 12.dp).coerceIn(120.dp, 260.dp)
                     CounterCircle(
                         count = state.count,
@@ -304,8 +324,8 @@ private fun TasbeehContent(
         ) { data ->
             Snackbar(
                 snackbarData = data,
-                containerColor = AppColors.Primary,
-                contentColor = AppColors.OnPrimary,
+                containerColor = AppColors.primary(),
+                contentColor = AppColors.onPrimary(),
                 shape = RoundedCornerShape(14.dp)
             )
         }
@@ -358,8 +378,8 @@ private fun HeaderRow(dayInCycle: Int, titleSize: TextUnit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Home",
-            color = AppColors.TextPrimary,
+            text = "Tasbeeh",
+            color = AppColors.textPrimary(),
             fontSize = titleSize,
             fontWeight = FontWeight.Bold
         )
@@ -367,8 +387,8 @@ private fun HeaderRow(dayInCycle: Int, titleSize: TextUnit) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(AppColors.Surface)
-                .border(1.dp, AppColors.Border, RoundedCornerShape(50))
+                .background(AppColors.surface())
+                .border(1.dp, AppColors.border(), RoundedCornerShape(50))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -383,7 +403,7 @@ private fun HeaderRow(dayInCycle: Int, titleSize: TextUnit) {
             Spacer(modifier = Modifier.width(5.dp))
             Text(
                 text = "Day $dayInCycle",
-                color = AppColors.TextPrimary,
+                color = AppColors.textPrimary(),
                 fontSize = 13.sp
             )
         }
@@ -414,21 +434,21 @@ private fun DailyGoalCard(
             .shadow(
                 elevation = 1.dp,
                 shape = RoundedCornerShape(16.dp),
-                ambientColor = AppColors.Primary.copy(alpha = 0.06f),
-                spotColor = AppColors.Primary.copy(alpha = 0.06f)
+                ambientColor = AppColors.primary().copy(alpha = 0.06f),
+                spotColor = AppColors.primary().copy(alpha = 0.06f)
             )
             .clip(RoundedCornerShape(16.dp))
-            .background(AppColors.Surface)
+            .background(AppColors.surface())
             .padding(horizontal = 12.dp, vertical = 9.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "Daily goal", color = AppColors.TextMuted, fontSize = 13.sp)
+            Text(text = "Daily goal", color = AppColors.textMuted(), fontSize = 13.sp)
             Text(
                 text = "$animatedCount / $dailyGoal",
-                color = AppColors.TextMuted,
+                color = AppColors.textMuted(),
                 fontSize = 13.sp
             )
         }
@@ -440,14 +460,14 @@ private fun DailyGoalCard(
                 .fillMaxWidth()
                 .height(7.dp)
                 .clip(RoundedCornerShape(50))
-                .background(AppColors.Track)
+                .background(AppColors.track())
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(animatedProgress)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(50))
-                    .background(AppColors.Gold)
+                    .background(AppColors.gold())
             )
         }
 
@@ -459,7 +479,7 @@ private fun DailyGoalCard(
                     0
                 )
             } to go",
-            color = if (goalReached) AppColors.Primary else AppColors.TextMuted,
+            color = if (goalReached) AppColors.primary() else AppColors.textMuted(),
             fontSize = 11.sp,
             fontWeight = if (goalReached) FontWeight.SemiBold else FontWeight.Normal,
             textAlign = TextAlign.End,
@@ -476,11 +496,11 @@ private fun DhikrCard(dhikr: DhikrInfo, arabicSize: TextUnit) {
             .shadow(
                 elevation = 1.dp,
                 shape = RoundedCornerShape(16.dp),
-                ambientColor = AppColors.Primary.copy(alpha = 0.06f),
-                spotColor = AppColors.Primary.copy(alpha = 0.06f)
+                ambientColor = AppColors.primary().copy(alpha = 0.06f),
+                spotColor = AppColors.primary().copy(alpha = 0.06f)
             )
             .clip(RoundedCornerShape(16.dp))
-            .background(AppColors.Surface)
+            .background(AppColors.surface())
             .padding(horizontal = 14.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -493,12 +513,12 @@ private fun DhikrCard(dhikr: DhikrInfo, arabicSize: TextUnit) {
                                 slideOutHorizontally(tween(180)) { -it / 4 })
             },
             label = "dhikrContent"
-        ) { target ->
+        ) { target: DhikrInfo ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (target.arabic.isNotBlank()) {
                     Text(
                         text = target.arabic,
-                        color = AppColors.TextPrimary,
+                        color = AppColors.textPrimary(),
                         fontSize = arabicSize,
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.SemiBold,
@@ -509,7 +529,7 @@ private fun DhikrCard(dhikr: DhikrInfo, arabicSize: TextUnit) {
                 if (target.meaning.isNotBlank()) {
                     Text(
                         text = target.meaning,
-                        color = AppColors.TextMuted,
+                        color = AppColors.textMuted(),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
                     )
@@ -517,7 +537,7 @@ private fun DhikrCard(dhikr: DhikrInfo, arabicSize: TextUnit) {
                 }
                 Text(
                     text = target.name,
-                    color = AppColors.TextPrimary,
+                    color = AppColors.textPrimary(),
                     fontSize = if (target.arabic.isBlank()) 22.sp else 15.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
@@ -539,10 +559,10 @@ private fun TargetLabel(text: String) {
             targetState = text,
             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
             label = "targetLabel"
-        ) { value ->
+        ) { value: String ->
             Text(
                 text = value,
-                color = AppColors.Primary,
+                color = AppColors.primary(),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
@@ -561,7 +581,7 @@ private fun LimitRow(
     val scrollState = rememberScrollState()
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val containerWidth = maxWidth
+        val containerWidth = this.maxWidth
 
         Row(
             modifier = Modifier
@@ -598,17 +618,17 @@ private fun SelectableChip(
 ) {
     val shape = RoundedCornerShape(30)
     val background by animateColorAsState(
-        targetValue = if (selected) AppColors.Primary else AppColors.Surface,
+        targetValue = if (selected) AppColors.primary() else AppColors.surface(),
         animationSpec = tween(220),
         label = "chipBackground"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) AppColors.Primary else AppColors.Border,
+        targetValue = if (selected) AppColors.primary() else AppColors.border(),
         animationSpec = tween(220),
         label = "chipBorder"
     )
     val textColor by animateColorAsState(
-        targetValue = if (selected) AppColors.OnPrimary else AppColors.TextPrimary,
+        targetValue = if (selected) AppColors.onPrimary() else AppColors.textPrimary(),
         animationSpec = tween(220),
         label = "chipText"
     )
@@ -641,7 +661,7 @@ private fun CustomLimitField(
     val shape = RoundedCornerShape(10.dp)
     val focusManager = LocalFocusManager.current
     val borderColor by animateColorAsState(
-        targetValue = if (active) AppColors.Primary else AppColors.Border,
+        targetValue = if (active) AppColors.primary() else AppColors.border(),
         animationSpec = tween(220),
         label = "fieldBorder"
     )
@@ -652,10 +672,10 @@ private fun CustomLimitField(
         singleLine = true,
         textStyle = TextStyle(
             fontFamily = ManropeFamily,
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 12.sp
         ),
-        cursorBrush = SolidColor(AppColors.Primary),
+        cursorBrush = SolidColor(AppColors.primary()),
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Number,
             imeAction = ImeAction.Done
@@ -665,13 +685,13 @@ private fun CustomLimitField(
             .width(72.dp)
             .height(32.dp)
             .clip(shape)
-            .background(AppColors.FieldBackground)
+            .background(AppColors.fieldBackground())
             .border(1.dp, borderColor, shape)
             .padding(horizontal = 8.dp),
         decorationBox = { innerTextField ->
             Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.fillMaxHeight()) {
                 if (value.isEmpty()) {
-                    Text(text = "Custom", color = AppColors.TextMuted, fontSize = 12.sp)
+                    Text(text = "Custom", color = AppColors.textMuted(), fontSize = 12.sp)
                 }
                 innerTextField()
             }
@@ -727,6 +747,10 @@ private fun CounterCircle(
         }
     }
 
+    val trackColor = AppColors.track()
+    val primaryColor = AppColors.primary()
+    val backgroundColor = AppColors.surface()
+
     Box(
         modifier = Modifier
             .size(size)
@@ -735,7 +759,7 @@ private fun CounterCircle(
                 scaleY = pulse.value
             }
             .clip(CircleShape)
-            .background(Color.White)
+            .background(backgroundColor)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -750,7 +774,7 @@ private fun CounterCircle(
             val topLeft = Offset(inset, inset)
 
             drawArc(
-                color = AppColors.Track,
+                color = trackColor,
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -759,7 +783,7 @@ private fun CounterCircle(
                 style = Stroke(width = strokeWidth)
             )
             drawArc(
-                color = AppColors.Primary,
+                color = primaryColor,
                 startAngle = -90f,
                 sweepAngle = 360f * ring.value,
                 useCenter = false,
@@ -784,7 +808,7 @@ private fun CounterCircle(
             ) { value ->
                 Text(
                     text = value.toString(),
-                    color = AppColors.TextPrimary,
+                    color = AppColors.textPrimary(),
                     fontSize = (size.value * 0.27f).sp,
                     fontWeight = FontWeight.Light
                 )
@@ -794,7 +818,7 @@ private fun CounterCircle(
                     is Limit.Fixed -> "of ${limit.value}"
                     Limit.Unlimited -> "Tap to count"
                 },
-                color = AppColors.TextMuted,
+                color = AppColors.textMuted(),
                 fontSize = 12.sp
             )
         }
@@ -836,17 +860,17 @@ private fun ActionButton(
     onClick: () -> Unit
 ) {
     val background by animateColorAsState(
-        targetValue = if (filled) AppColors.Primary else AppColors.Surface,
+        targetValue = if (filled) AppColors.primary() else AppColors.surface(),
         animationSpec = tween(220),
         label = "actionBackground"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (filled) AppColors.Primary else AppColors.Border,
+        targetValue = if (filled) AppColors.primary() else AppColors.border(),
         animationSpec = tween(220),
         label = "actionBorder"
     )
     val tint by animateColorAsState(
-        targetValue = if (filled) AppColors.OnPrimary else AppColors.TextPrimary,
+        targetValue = if (filled) AppColors.onPrimary() else AppColors.textPrimary(),
         animationSpec = tween(220),
         label = "actionTint"
     )

@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +38,7 @@ import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.mytasbeehapp.R
 import com.example.mytasbeehapp.presentation.navigation.screens
+import com.example.mytasbeehapp.presentation.screens.onboarding.OnboardingPrefs
 import com.example.mytasbeehapp.presentation.theme.ManropeFamily
 
 private val GreenCenter = Color(0xFF16856A)
@@ -52,6 +54,7 @@ fun Splash(
     viewModel: SplashViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.onIntent(SplashIntent.StartSplash)
@@ -60,8 +63,16 @@ fun Splash(
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                SplashEffect.NavigateToHome -> navController.navigate(screens.Tasbeeh.route) {
-                    popUpTo(screens.Splash.route) { inclusive = true }
+                SplashEffect.NavigateToHome -> {
+                    // Pehli dafa onboarding, uske baad seedha Home
+                    val next = if (OnboardingPrefs.isDone(context)) {
+                        screens.Tasbeeh.route
+                    } else {
+                        screens.Onboarding.route
+                    }
+                    navController.navigate(next) {
+                        popUpTo(screens.Splash.route) { inclusive = true }
+                    }
                 }
             }
         }
@@ -91,11 +102,11 @@ private fun SplashContent(state: SplashState) {
                 )
             )
     ) {
-        val compact = maxWidth < 360.dp
-        val shortSide = minOf(maxWidth, maxHeight)
+        val compact = this.maxWidth < 360.dp
+        val shortSide = minOf(this.maxWidth, this.maxHeight)
         val logoSize = (shortSide * 0.55f).coerceIn(160.dp, 260.dp)
         val titleSize = if (compact) 26.sp else 30.sp
-        val progressWidth = (maxWidth * 0.3f).coerceIn(100.dp, 160.dp)
+        val progressWidth = (this.maxWidth * 0.3f).coerceIn(100.dp, 160.dp)
 
         Column(
             modifier = Modifier

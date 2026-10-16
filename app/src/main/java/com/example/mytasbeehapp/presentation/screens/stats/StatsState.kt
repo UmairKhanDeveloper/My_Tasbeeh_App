@@ -1,6 +1,6 @@
 package com.example.mytasbeehapp.presentation.screens.stats
 
-import com.example.mytasbeehapp.presentation.screens.tasbeeh.DEFAULT_DAILY_GOAL
+import com.example.mytasbeehapp.domain.model.DEFAULT_DAILY_GOAL
 
 /** Ek din ka chart/week data — asli [com.example.mytasbeehapp.presentation.screens.tasbeeh.DayRecord] se banta hai. */
 data class DayStat(

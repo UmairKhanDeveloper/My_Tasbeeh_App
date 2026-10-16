@@ -65,7 +65,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.mytasbeehapp.presentation.screens.component.AppColors
+import com.example.mytasbeehapp.presentation.screens.tasbeeh.CycleResetBus
 import com.example.mytasbeehapp.presentation.theme.ManropeFamily
 
 private val ChartHeight = 120.dp
@@ -73,9 +75,7 @@ private val ChartHeight = 120.dp
 @Composable
 fun Stats(
     navController: NavController,
-    viewModel: StatsViewModel = viewModel(
-        factory = StatsViewModelFactory(LocalContext.current.applicationContext)
-    )
+    viewModel: StatsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val haptic = LocalHapticFeedback.current
@@ -83,6 +83,15 @@ fun Stats(
     // Tab har baar khulay to Home screen ki latest activity ke mutabiq refresh ho jaye
     LaunchedEffect(Unit) {
         viewModel.onIntent(StatsIntent.Refresh)
+    }
+
+    LaunchedEffect(Unit) {
+        CycleResetBus.reset.collect { shouldReload ->
+            if (shouldReload) {
+                viewModel.onIntent(StatsIntent.Refresh)
+                CycleResetBus.consume()
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -106,7 +115,7 @@ private fun StatsContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppColors.Background),
+            .background(AppColors.background()),
         contentAlignment = Alignment.TopCenter
     ) {
         Column(
@@ -180,11 +189,11 @@ private fun StatsCardContainer(
             .shadow(
                 elevation = 1.dp,
                 shape = RoundedCornerShape(16.dp),
-                ambientColor = AppColors.Primary.copy(alpha = 0.06f),
-                spotColor = AppColors.Primary.copy(alpha = 0.06f)
+                ambientColor = AppColors.primary().copy(alpha = 0.06f),
+                spotColor = AppColors.primary().copy(alpha = 0.06f)
             )
             .clip(RoundedCornerShape(16.dp))
-            .background(AppColors.Surface)
+            .background(AppColors.surface())
             .padding(horizontal = 14.dp, vertical = 12.dp),
         content = content
     )
@@ -210,7 +219,7 @@ private fun StatsHeader(streakDays: Int) {
     ) {
         Text(
             text = "Stats",
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 21.sp,
             fontWeight = FontWeight.Bold
         )
@@ -218,8 +227,8 @@ private fun StatsHeader(streakDays: Int) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(AppColors.Surface)
-                .border(1.dp, AppColors.Border, RoundedCornerShape(50))
+                .background(AppColors.surface())
+                .border(1.dp, AppColors.border(), RoundedCornerShape(50))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -234,7 +243,7 @@ private fun StatsHeader(streakDays: Int) {
             Spacer(modifier = Modifier.width(5.dp))
             Text(
                 text = "$streakDays days",
-                color = AppColors.TextPrimary,
+                color = AppColors.textPrimary(),
                 fontSize = 13.sp
             )
         }
@@ -297,7 +306,7 @@ private fun SummaryCard(
                 ) { target ->
                     Text(
                         text = target,
-                        color = AppColors.TextPrimary,
+                        color = AppColors.textPrimary(),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -306,7 +315,7 @@ private fun SummaryCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = label,
-                color = AppColors.TextMuted,
+                color = AppColors.textMuted(),
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
@@ -319,7 +328,7 @@ private fun WeekCard(state: StatsState) {
     StatsCardContainer(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "This week",
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold
         )
@@ -330,7 +339,7 @@ private fun WeekCard(state: StatsState) {
             } else {
                 "Start counting on Home to see your stats here."
             },
-            color = AppColors.TextMuted,
+            color = AppColors.textMuted(),
             fontSize = 13.sp
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -352,12 +361,12 @@ private fun DayCircle(
     reached: Boolean
 ) {
     val background by animateColorAsState(
-        targetValue = if (reached) AppColors.Primary else AppColors.Surface,
+        targetValue = if (reached) AppColors.primary() else AppColors.surface(),
         animationSpec = tween(300),
         label = "dayBackground"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (reached) AppColors.Primary else AppColors.Border,
+        targetValue = if (reached) AppColors.primary() else AppColors.border(),
         animationSpec = tween(300),
         label = "dayBorder"
     )
@@ -381,7 +390,7 @@ private fun DayCircle(
         ) {
             Text(
                 text = "✓",
-                color = AppColors.OnPrimary,
+                color = AppColors.onPrimary(),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.graphicsLayer {
@@ -394,7 +403,7 @@ private fun DayCircle(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = label,
-            color = AppColors.TextMuted,
+            color = AppColors.textMuted(),
             fontSize = 11.sp
         )
     }
@@ -405,7 +414,7 @@ private fun ChartCard(state: StatsState) {
     StatsCardContainer(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "Last 7 days",
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold
         )
@@ -464,13 +473,13 @@ private fun BarColumn(
                     .fillMaxWidth()
                     .height(ChartHeight * animatedFraction)
                     .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                    .background(if (isToday) AppColors.Gold else AppColors.Primary)
+                    .background(if (isToday) AppColors.gold() else AppColors.primary())
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = label,
-            color = AppColors.TextMuted,
+            color = AppColors.textMuted(),
             fontSize = 11.sp
         )
     }
@@ -491,14 +500,14 @@ private fun GoalCard(
             Column {
                 Text(
                     text = "Daily goal",
-                    color = AppColors.TextPrimary,
+                    color = AppColors.textPrimary(),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Counts per day",
-                    color = AppColors.TextMuted,
+                    color = AppColors.textMuted(),
                     fontSize = 13.sp
                 )
             }
@@ -519,7 +528,7 @@ private fun GoalCard(
                 ) { value ->
                     Text(
                         text = value.toString(),
-                        color = AppColors.TextPrimary,
+                        color = AppColors.textPrimary(),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
@@ -558,8 +567,8 @@ private fun GoalButton(
                 scaleY = scale
             }
             .clip(CircleShape)
-            .background(AppColors.Surface)
-            .border(1.dp, AppColors.Border, CircleShape)
+            .background(AppColors.surface())
+            .border(1.dp, AppColors.border(), CircleShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -569,7 +578,7 @@ private fun GoalButton(
     ) {
         Text(
             text = symbol,
-            color = AppColors.TextPrimary,
+            color = AppColors.textPrimary(),
             fontSize = 18.sp,
             fontWeight = FontWeight.Medium
         )
