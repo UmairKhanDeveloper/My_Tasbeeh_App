@@ -73,15 +73,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -93,9 +90,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.example.mytasbeehapp.R
 import com.example.mytasbeehapp.domain.model.DhikrInfo
 import com.example.mytasbeehapp.domain.model.Limit
@@ -106,7 +102,6 @@ import com.example.mytasbeehapp.presentation.screens.component.AppColors
 import com.example.mytasbeehapp.presentation.theme.ManropeFamily
 import com.example.mytasbeehapp.util.SoundManager
 import com.example.mytasbeehapp.util.VibrationManager
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable

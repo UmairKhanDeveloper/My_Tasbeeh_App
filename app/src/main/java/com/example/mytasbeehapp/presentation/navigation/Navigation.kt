@@ -15,6 +15,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.mytasbeehapp.R
+import com.example.mytasbeehapp.presentation.screens.PrivacyPolicy.PrivacyPolicyScreen
+import com.example.mytasbeehapp.presentation.screens.TermsOfUse.TermsOfUseScreen
 import com.example.mytasbeehapp.presentation.screens.azkar.Azkar
 import com.example.mytasbeehapp.presentation.screens.component.AppColors
 import com.example.mytasbeehapp.presentation.screens.onboarding.Onboarding
@@ -66,6 +68,13 @@ fun Navigation(navController: NavHostController) {
         composable(screens.Setting.route) {
             HomeScaffold(navController) { Setting(navController) }
         }
+
+        composable(screens.PrivacyPolicy.route) {
+            PrivacyPolicyScreen(navController)
+        }
+        composable(screens.TermsOfUse.route) {
+            TermsOfUseScreen(navController)
+        }
     }
 }
 
@@ -96,4 +105,6 @@ sealed class screens(
     object Azkar : screens("Azkar", "Azkar", R.drawable.azkaar)
     object Stats : screens("Stats", "Stats", R.drawable.stats)
     object Setting : screens("Setting", "Setting", R.drawable.settings)
+    object PrivacyPolicy : screens("PrivacyPolicy", "Privacy Policy", R.drawable.privacy_policy)
+    object TermsOfUse : screens("TermsOfUse", "Terms of Use", R.drawable.terms_of_use)
 }

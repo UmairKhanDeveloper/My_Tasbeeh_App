@@ -2,6 +2,8 @@ package com.example.mytasbeehapp.presentation.screens.setting
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -21,7 +23,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -92,10 +93,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.mytasbeehapp.R
+import com.example.mytasbeehapp.presentation.navigation.screens
 import com.example.mytasbeehapp.util.ReminderScheduler
 import com.example.mytasbeehapp.util.SoundManager
 import com.example.mytasbeehapp.util.VibrationManager
-import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -103,9 +104,17 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 private val Green = Color(0xFF0B6B4B)
-private val GreenDark = Color(0xFF0A5A40)
-private val Gold = Color(0xFFE5B84B)
 private val DangerRed = Color(0xFFD64545)
+
+private fun openUrl(context: Context, url: String) {
+    try {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "No browser found to open this link", Toast.LENGTH_SHORT).show()
+    }
+}
 
 @Composable
 fun Setting(
@@ -121,8 +130,7 @@ fun Setting(
                 is SettingEffect.ShowMessage ->
                     Toast.makeText(context, effect.message, Toast.LENGTH_SHORT).show()
 
-                is SettingEffect.OpenUrl ->
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(effect.url)))
+                is SettingEffect.OpenUrl -> openUrl(context, effect.url)
 
                 SettingEffect.RateApp -> context.startActivity(
                     Intent(
@@ -156,6 +164,7 @@ fun Setting(
                 SettingEffect.PlayVibration -> VibrationManager.vibrate(context)
                 SettingEffect.PlayClickSound -> SoundManager.playClick(context)
                 is SettingEffect.ScheduleReminder -> {
+                    val name = if (effect.type == ReminderType.Morning) "Morning" else "Evening"
                     if (effect.enabled) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             if (ContextCompat.checkSelfPermission(
@@ -170,11 +179,9 @@ fun Setting(
                             }
                         }
                         ReminderScheduler.schedule(context, effect.type, effect.time)
-                        val name = if (effect.type == ReminderType.Morning) "Morning" else "Evening"
                         Toast.makeText(context, "$name azkaar reminder set for ${formatTime(effect.time)}", Toast.LENGTH_SHORT).show()
                     } else {
                         ReminderScheduler.cancel(context, effect.type)
-                        val name = if (effect.type == ReminderType.Morning) "Morning" else "Evening"
                         Toast.makeText(context, "$name azkaar reminder turned off", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -182,15 +189,15 @@ fun Setting(
         }
     }
 
-    SettingContent(state = state, onIntent = viewModel::onIntent)
+    SettingContent(state = state, onIntent = viewModel::onIntent, navController = navController)
 }
 
 @Composable
 fun SettingContent(
     state: SettingState,
-    onIntent: (SettingIntent) -> Unit
+    onIntent: (SettingIntent) -> Unit,
+    navController: NavController
 ) {
-
     var reminderDialogFor by remember { mutableStateOf<ReminderType?>(null) }
 
     Column(
@@ -384,14 +391,14 @@ fun SettingContent(
                     SettingRow(
                         icon = R.drawable.privacy_policy,
                         title = "Privacy policy",
-                        onClick = { onIntent(SettingIntent.PrivacyPolicyClicked) },
+                        onClick = { navController.navigate(screens.PrivacyPolicy.route) },
                         trailing = { Chevron() }
                     )
                     RowDivider()
                     SettingRow(
                         icon = R.drawable.terms_of_use,
                         title = "Terms of use",
-                        onClick = { onIntent(SettingIntent.TermsClicked) },
+                        onClick = { navController.navigate(screens.TermsOfUse.route) },
                         trailing = { Chevron() }
                     )
                     RowDivider()
@@ -411,7 +418,7 @@ fun SettingContent(
                         icon = R.drawable.reset_data_red,
                         title = "Reset all data",
                         subtitle = "Deletes counts, history and custom zikr",
-                        iconTint = Color(0xFFD64545),
+                        iconTint = DangerRed,
                         onClick = { onIntent(SettingIntent.ResetClicked) },
                         trailing = { Chevron() }
                     )
@@ -605,7 +612,6 @@ private fun AppInfoCard(version: String) {
     }
 }
 
-
 @Composable
 private fun AppLogo() {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -755,10 +761,7 @@ private fun SettingRowLayout(
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.98f else 1f,
-        animationSpec = spring(
-            dampingRatio = 0.6f,
-            stiffness = 400f
-        ),
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
         label = "settingRowScale"
     )
 
@@ -810,10 +813,7 @@ private fun Chevron() {
 private fun GreenSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
     val scale by animateFloatAsState(
         targetValue = if (checked) 1.1f else 1f,
-        animationSpec = spring(
-            dampingRatio = 0.6f,
-            stiffness = 400f
-        ),
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
         label = "switchScale"
     )
 
@@ -857,10 +857,7 @@ private fun StepperButton(icon: ImageVector, onClick: () -> Unit) {
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.9f else 1f,
-        animationSpec = spring(
-            dampingRatio = 0.6f,
-            stiffness = 400f
-        ),
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
         label = "stepperButtonScale"
     )
 
@@ -1099,7 +1096,6 @@ private fun themeIcon(theme: AppTheme): ImageVector = when {
     else -> Icons.Outlined.Brightness6
 }
 
-
 @Composable
 private fun ActionConfirmDialog(
     icon: ImageVector,
@@ -1229,16 +1225,17 @@ private fun ReminderTimePickerDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    onConfirm(LocalTime.of(pickerState.hour, pickerState.minute))
-                }
+            TextButton(onClick = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                onConfirm(LocalTime.of(pickerState.hour, pickerState.minute))
+            }
             }) {
                 Text("OK", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
         }
     )
 }
